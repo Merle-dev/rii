@@ -1,0 +1,11 @@
+[package]
+name = "rii"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+crossterm = "0.29.0"
+glam = "0.30.4"
+phf = { version = "0.12.1", features = ["macros"] }
+rand = "0.9.1"
+unicode-segmentation = "1.12.0"
