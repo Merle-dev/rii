@@ -1,50 +1,111 @@
-use std::{
-    collections::HashMap,
-    time::{self, Duration, Instant},
-};
+use std::collections::HashMap;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
+#[derive(Debug)]
 pub struct KeyController {
-    mode: char,
-    keymap: HashMap<(char, KeyModifiers, Vec<KeyCode>, Vec<char>), String>,
-    backload: (Vec<KeyCode>, Vec<char>),
-    last_time: Instant,
+    pub mode: char,
+    tree: HashMap<char, KeyTree>,
+    current: Option<KeyTree>,
 }
 
 impl KeyController {
     pub fn new(keymap: HashMap<(char, KeyModifiers, Vec<KeyCode>, Vec<char>), String>) -> Self {
+        let mut tree = HashMap::new();
+        tree.insert(
+            'n',
+            KeyTree::new(
+                KeyModifiers::NONE,
+                vec![KeyCode::Char('y'), KeyCode::Char('y')],
+                "yank".into(),
+            ),
+        );
+        tree.insert(
+            'n',
+            KeyTree::new(
+                KeyModifiers::NONE,
+                vec![KeyCode::Char('d'), KeyCode::Char('d')],
+                "delete".into(),
+            ),
+        );
+        tree.insert(
+            'n',
+            KeyTree::new(
+                KeyModifiers::NONE,
+                vec![KeyCode::Char('R')],
+                "replace".into(),
+            ),
+        );
+        tree.insert(
+            'n',
+            KeyTree::new(
+                KeyModifiers::CONTROL,
+                vec![KeyCode::Char('f')],
+                "find".into(),
+            ),
+        );
+        tree.insert(
+            'n',
+            KeyTree::new(
+                KeyModifiers::NONE,
+                vec![KeyCode::Char('i')],
+                "insert".into(),
+            ),
+        );
         Self {
             mode: 'n',
-            keymap,
-            backload: (vec![], vec![]),
-            last_time: Instant::now(),
+            current: tree.get(&'n').cloned(),
+            tree,
         }
     }
     pub fn process(&mut self, key: KeyEvent) -> Option<String> {
-        match key.code {
-            KeyCode::Char(c) => self.backload.1.push(c),
-            _ => self.backload.0.push(key.code),
-        };
-        let now = Instant::now();
-        let mut r = None;
-        if now - self.last_time < Duration::from_millis(600) {
-            r = self.keymap.get(&(
-                self.mode,
-                key.modifiers,
-                self.backload.0.clone(),
-                self.backload.1.clone(),
-            ));
-            println!("{:?} | {:?}", self.backload, r);
-            if r.is_some() {
-                self.backload = (vec![], vec![]);
+        if let Some(tree) = &self.current {
+            match tree.0.get(&(key.code, key.modifiers)) {
+                Some(KeyTreeOption::End(s)) => Some(s.clone()),
+                Some(KeyTreeOption::Tree(kt)) => {
+                    self.current = Some(kt.as_ref().clone());
+                    None
+                }
+                _ => None,
             }
-            self.last_time = now;
         } else {
-            println!("{:?}", self.backload);
-            self.backload = (vec![], vec![]);
+            self.current = self.tree.get(&self.mode).cloned();
+            if self.current.is_some() {
+                self.process(key)
+            } else {
+                None
+            }
         }
-        self.last_time = now;
-        r.cloned()
+    }
+    pub fn mode_name(&self) -> &'static str {
+        match self.mode {
+            'n' => "NORMAL",
+            'i' => "INSERT",
+            'v' => "VISUAL",
+            'l' => "V-LINE",
+            'b' => "V-BLOCK",
+            _ => "      ",
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+enum KeyTreeOption {
+    Tree(Box<KeyTree>),
+    End(String),
+}
+
+#[derive(Debug, Clone)]
+struct KeyTree(HashMap<(KeyCode, KeyModifiers), KeyTreeOption>);
+
+impl KeyTree {
+    pub fn new(mods: KeyModifiers, mut v: Vec<KeyCode>, end: String) -> Self {
+        let first_key = v.remove(0);
+        let o = if v.len() == 0 {
+            KeyTreeOption::End(end)
+        } else {
+            KeyTreeOption::Tree(Box::new(Self::new(mods, v, end)))
+        };
+        Self(HashMap::from([((first_key, mods), o)]))
     }
 }

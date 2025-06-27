@@ -2,9 +2,15 @@ use std::{collections::HashMap, io::Result};
 
 mod app;
 mod keys;
+mod render;
 
 use app::*;
-use crossterm::event::{KeyCode, KeyModifiers};
+use crossterm::{
+    event::{KeyCode, KeyModifiers},
+    terminal,
+};
+
+use crate::keys::KeyController;
 
 fn main() -> Result<()> {
     // let args: Vec<String> = std::env::args().collect();
